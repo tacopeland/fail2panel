@@ -7,3 +7,4 @@ backend/*$py.class
 backend/venv
 
 frontend/elm-stuff
+frontend/index.html
