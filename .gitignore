@@ -2,9 +2,9 @@
 
 
 **/__pycache__/
-backend/*.py[cod]
-backend/*$py.class
-backend/venv
+*.py[cod]
+*$py.class
+venv
 
-frontend/elm-stuff
-frontend/index.html
+elm-stuff
+index.html
