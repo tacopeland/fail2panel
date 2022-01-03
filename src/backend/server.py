@@ -1,11 +1,12 @@
 from ipaddress import ip_address
 import json
 from flask import Flask, jsonify
+from flask_cors import CORS
 
 from fail2ban_helper import send_command
 
 app = Flask(__name__)
-
+CORS(app)
 @app.route('/api/jails', methods=['GET'])
 def get_jails():
     res = send_command(['status'])
