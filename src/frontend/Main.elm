@@ -6,8 +6,10 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Events exposing (onClick)
 import Element.Font as Font
+import Element.Input as Input
 import Http
-import Json.Decode exposing (Decoder, map7, field, int, string, list)
+import Json.Decode as Decode exposing (Decoder, field, int, string, list)
+import Json.Decode.Pipeline exposing (required)
 
 
 
@@ -36,7 +38,27 @@ type alias JailsPageModel =
 
 type alias Jails = List String
 type alias Jail =
-  { currentlyBanned : Int, totalBanned : Int, bannedIPs : List String, ignoredIPs : List String, findTime : Int, banTime : Int, maxRetry : Int }
+  { currentlyFailed : Int
+  , totalFailed : Int
+  , fileList : List String
+  , currentlyBanned : Int
+  , totalBanned : Int
+  , bannedIPs : List String
+  , bannedASNs : List String
+  , bannedCountries : List String
+  , bannedRIRs : List String
+  , ignoredIPs : List String
+  , findTime : Int
+  , banTime : Int
+  , maxRetry : Int
+  }
+
+type alias IP =
+  { addr : String
+  , asn : String
+  , country : String
+  , rir : String
+  }
 
 initialModel = JailsPageModel [] Nothing Nothing
 
@@ -53,6 +75,10 @@ type Msg
   = GotJails (Result Http.Error Jails)
   | DeselectJails
   | SelectedJail String
+  | UnbanIP String
+  | UnbannedIP (Result Http.Error ())
+  | UnignoreIP String
+  | UnignoredIP (Result Http.Error ())
   | GotJail String (Result Http.Error Jail)
 
 
@@ -72,8 +98,42 @@ update msg model =
         JailsPage jpModel -> (JailsPage { jpModel | activeJail = Nothing, jailInfo = Nothing }, Cmd.none)
     SelectedJail jailName ->
       case model of
-        Failure -> (Failure, Cmd.none)
+        Failure -> init () 
         JailsPage jpModel -> (JailsPage { jpModel | activeJail = Just jailName }, getJail jailName)
+    UnbanIP ip ->
+      case model of
+        Failure -> init () 
+        JailsPage jpModel ->
+          case jpModel.activeJail of
+            Nothing -> init ()
+            Just activeJail -> (JailsPage jpModel, postUnbanIP activeJail ip)
+    UnbannedIP result -> 
+      case result of
+        Ok _ ->
+          case model of
+            Failure -> init ()
+            JailsPage jpModel ->
+              case jpModel.activeJail of
+                Nothing -> (Failure, Cmd.none)
+                Just activeJail -> (JailsPage jpModel, getJail activeJail)
+        Err _ -> (Failure, Cmd.none)
+    UnignoreIP ip ->
+      case model of
+        Failure -> init () 
+        JailsPage jpModel ->
+          case jpModel.activeJail of
+            Nothing -> init ()
+            Just activeJail -> (JailsPage jpModel, postUnignoreIP activeJail ip)
+    UnignoredIP result -> 
+      case result of
+        Ok _ ->
+          case model of
+            Failure -> init ()
+            JailsPage jpModel ->
+              case jpModel.activeJail of
+                Nothing -> (Failure, Cmd.none)
+                Just activeJail -> (JailsPage jpModel, getJail activeJail)
+        Err _ -> (Failure, Cmd.none)
     GotJail jailName result ->
       case result of
         Ok jail -> 
@@ -102,7 +162,7 @@ view model =
       row [ width <| minimum 300 fill, height fill ]
     (case model of
       Failure ->
-        [ Element.column [ alignTop, alignLeft, Font.size 30, Font.bold, paddingXY 10 10, width fill, spacing 10 ]
+        [ column [ alignTop, alignLeft, Font.size 30, Font.bold, paddingXY 10 10, width fill, spacing 10 ]
           [ text "Jails failed to load."
           , paragraph [ Font.size 20, Font.regular ] [ text "Maybe fail2ban isn't started, this server's user can't access fail2ban's socket, or the backend daemon isn't running." ]
           ]
@@ -157,11 +217,56 @@ viewJail jail activeJail =
   in
   link attrs { url = "#", label = el [] (text jail) }
 
-viewJailInfo : Maybe Jail -> Element msg
+viewJailInfo : Maybe Jail -> Element Msg
 viewJailInfo maybeJail =
   case maybeJail of
-    Nothing -> el [] (text "Bottom text lmao")
-    Just jailInfo -> el [] (text "You've got jail")
+    Nothing -> el [ padding 15] (text "Bottom text lmao")
+    Just jailInfo ->
+      let heading txt = el [ Font.size 26, Font.bold, paddingXY 0 15 ] (text txt)
+          section els = column [ padding 15 ] els in
+      column [ alignTop, spacing 5 ]
+        [ section 
+          [ heading "Summary"
+          , text ("Current banned IPs: " ++ (String.fromInt jailInfo.currentlyBanned))
+          , text ("Total banned IPs: " ++ (String.fromInt jailInfo.totalBanned))
+          ]
+        , section
+          [ heading "Banned IPs"
+          , table [ spacing 20 ]
+            { data = getJailIPs jailInfo
+            , columns =
+              [ { header = text "IP Address"
+                , width = fill
+                , view = \ip -> text ip.addr }
+              , { header = text "ASN"
+                , width = fill
+                , view = \ip -> text ip.asn }
+              , { header = text "Country"
+                , width = fill
+                , view = \ip -> text ip.country }
+              , { header = text "RIR"
+                , width = fill
+                , view = \ip -> text ip.rir }
+              , { header = text "Unban?"
+                , width = fill
+                , view = \ip -> Input.button [] { onPress = Just (UnbanIP ip.addr), label = text "X" }
+              }]}
+          ]
+        , section
+          [ heading "Ignored IPs"
+          , table [ spacing 20 ]
+            { data = jailInfo.ignoredIPs
+            , columns =
+              [ { header = text "IP address"
+                , width = fill
+                , view = \ip -> text ip }
+              , { header = text "Un-ignore?"
+                , width = fill
+                , view = \ip -> Input.button [] { onPress = Just (UnignoreIP ip), label = text "X"}
+              }]}
+          ]
+        ]
+
 
 
 -- HTTP
@@ -187,11 +292,37 @@ getJail jail =
     }
 
 jailDecoder : Decoder Jail
-jailDecoder = map7 Jail
-  (field "currently_banned" int)
-  (field "total_banned" int)
-  (field "banned_ips" (list string))
-  (field "ignored_ips" (list string))
-  (field "findtime" int)
-  (field "bantime" int)
-  (field "maxretry" int)
+jailDecoder =
+  Decode.succeed Jail
+    |> required "currently_failed" int
+    |> required "total_failed" int
+    |> required "file_list" (list string)
+    |> required "currently_banned" int
+    |> required "total_banned" int
+    |> required "banned_ips" (list string)
+    |> required "banned_asns" (list string)
+    |> required "banned_countries" (list string)
+    |> required "banned_rirs" (list string)
+    |> required "ignored_ips" (list string)
+    |> required "findtime" int
+    |> required "bantime" int
+    |> required "maxretry" int
+
+
+postUnbanIP : String -> String -> Cmd Msg
+postUnbanIP jail ip =
+  Http.post
+    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/unban/" ++ ip
+    , body = Http.emptyBody
+    , expect = Http.expectWhatever UnbannedIP }
+
+postUnignoreIP : String -> String -> Cmd Msg
+postUnignoreIP jail ip =
+  Http.post
+    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/delignore/" ++ ip
+    , body = Http.emptyBody
+    , expect = Http.expectWhatever UnignoredIP }
+
+getJailIPs : Jail -> List IP
+getJailIPs jail =
+  List.map4 (\a b c d -> IP a b c d) jail.bannedIPs jail.bannedASNs jail.bannedCountries jail.bannedRIRs

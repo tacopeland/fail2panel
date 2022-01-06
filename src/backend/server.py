@@ -24,9 +24,15 @@ def get_jails():
 @app.route('/api/jails/<jail_name>', methods=['GET'])
 def get_jail(jail_name):
     data = {
+        'currently_failed': 0,
+        'total_failed': 0,
+        'file_list': [],
         'currently_banned': 0,
         'total_banned': 0,
         'banned_ips': [],
+        'banned_asns': [],
+        'banned_countries': [],
+        'banned_rirs': [],
         'ignored_ips': [],
         'findtime': 600,
         'bantime': 600,
@@ -34,7 +40,7 @@ def get_jail(jail_name):
     }
 
 
-    res = send_command(['status', jail_name])
+    res = send_command(['status', jail_name, 'cymru'])
     if res['error']:
         return json.dumps(res)
 
@@ -49,6 +55,27 @@ def get_jail(jail_name):
 
                 if k2 == 'Banned IP list':
                     data['banned_ips'] = v2
+
+                if k2 == 'Banned ASN list':
+                    data['banned_asns'] = v2
+
+                if k2 == 'Banned Country list':
+                    data['banned_countries'] = v2
+
+                if k2 == 'Banned RIR list':
+                    data['banned_rirs'] = v2
+
+        elif k == 'Filter':
+            for k2, v2 in v:
+                if k2 == 'Currently failed':
+                    data['currently_failed'] = v2
+
+                if k2 == 'Total failed':
+                    data['total_failed'] = v2
+
+                if k2 == 'File list':
+                    data['file_list'] = v2
+
 
     res = send_command(['get', jail_name, 'ignoreip'])
     if res['error']:

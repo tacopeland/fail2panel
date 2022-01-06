@@ -1,8 +1,8 @@
 # API Specification
 
 ## Errors
-Each API call may either return `{"error": True, "reason": ...}` or its normal result.
-Check for this error every time.
+Each API call may either return `{"error": True, "reason": ...}`
+or its normal result. Check for this error every time.
 
 ## GET /api/jails
 Returns:
@@ -17,23 +17,32 @@ Params:
 Returns:
 ```json
 {
+	"currently_failed": 0,
+	"total_failed": 0,
+	"file_list": [],
 	"currently_banned": 0,
 	"total_banned": 0,
 	"banned_ips": [],
+	"banned_asns": [],
+	"banned_countries": [],
+	"banned_rirs": [],
 	"ignored_ips": [],
 	"findtime": 600,
 	"bantime": 600,
 	"maxretry": 0
 }
 ```
-Where `banned_ips` is a list of IPs currently banned (`len(banned_ips) == currently_banned`),
-`ignored_ips` is the list of IPs ignored by fail2ban, and `maxretry` is the number of  times
+Where `banned_ips` is a list of IPs currently banned
+(`len(banned_ips) == currently_banned`), `ignored_ips` is the list of IPs
+ignored by fail2ban, and `maxretry` is the number of failed login attempts
+before an IP is banned.
 
 ## POST /api/jails/<jail_name>/maxretry/<retries>
 Set the maximum amount of retries before an IP is jailed for jail `jail_name`.
 
 ## POST /api/jails/<jail_name>/findtime/<time>
-Set the time window (in seconds) in which fail2ban searches for failed attempts before an IP is jailed for jail `jail_name`.
+Set the time window (in seconds) in which fail2ban searches for failed attempts
+before an IP is jailed for jail `jail_name`.
 
 ## POST /api/jails/<jail_name>/bantime/<time>
 Set the time (in seconds) IP addresses are banned for when they are banned.
