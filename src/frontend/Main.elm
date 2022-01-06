@@ -4,9 +4,10 @@ import Browser
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events exposing (onClick)
 import Element.Font as Font
 import Http
-import Json.Decode exposing (Decoder, field, string, list)
+import Json.Decode exposing (Decoder, map7, field, int, string, list)
 
 
 
@@ -28,21 +29,20 @@ main =
 
 type Model
   = Failure
-  | Loading
-  | JailsSuccess Jails
-  | JailSuccess Jail
+  | JailsPage JailsPageModel
 
+type alias JailsPageModel =
+  { jails : Jails, activeJail : Maybe String, jailInfo : Maybe Jail }
 
 type alias Jails = List String
 type alias Jail =
-  { currentlyBanned : Int, totalBanned : Int, bannedIPs : [String]
-  , ignoredIPs : [String], findTime : Int, banTime : Int, maxRetry : Int }
+  { currentlyBanned : Int, totalBanned : Int, bannedIPs : List String, ignoredIPs : List String, findTime : Int, banTime : Int, maxRetry : Int }
+
+initialModel = JailsPageModel [] Nothing Nothing
 
 
 init : () -> (Model, Cmd Msg)
-init _ =
-        (Loading
-        , getJails)
+init _ = (JailsPage initialModel, getJails)
 
 
 
@@ -51,7 +51,9 @@ init _ =
 
 type Msg
   = GotJails (Result Http.Error Jails)
-  | GotJail (Result Http.Error Jail)
+  | DeselectJails
+  | SelectedJail String
+  | GotJail String (Result Http.Error Jail)
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -59,7 +61,25 @@ update msg model =
   case msg of
     GotJails result ->
       case result of
-        Ok jails -> (JailsSuccess jails, Cmd.none)
+        Ok jailList ->
+          case model of
+            Failure -> (JailsPage { initialModel | jails = jailList }, Cmd.none)
+            JailsPage jpModel -> (JailsPage { jpModel | jails = jailList }, Cmd.none)
+        Err _ -> (Failure, Cmd.none)
+    DeselectJails ->
+      case model of
+        Failure -> init ()
+        JailsPage jpModel -> (JailsPage { jpModel | activeJail = Nothing, jailInfo = Nothing }, Cmd.none)
+    SelectedJail jailName ->
+      case model of
+        Failure -> (Failure, Cmd.none)
+        JailsPage jpModel -> (JailsPage { jpModel | activeJail = Just jailName }, getJail jailName)
+    GotJail jailName result ->
+      case result of
+        Ok jail -> 
+          case model of
+            Failure -> init ()
+            JailsPage jpModel -> (JailsPage { jpModel | jailInfo = Just jail }, Cmd.none)
         Err _ -> (Failure, Cmd.none)
       
 
@@ -82,37 +102,40 @@ view model =
       row [ width <| minimum 300 fill, height fill ]
     (case model of
       Failure ->
-        [text "Jails failed to load."]
+        [ Element.column [ alignTop, alignLeft, Font.size 30, Font.bold, paddingXY 10 10, width fill, spacing 10 ]
+          [ text "Jails failed to load."
+          , paragraph [ Font.size 20, Font.regular ] [ text "Maybe fail2ban isn't started, this server's user can't access fail2ban's socket, or the backend daemon isn't running." ]
+          ]
+        ]
 
-      Loading ->
-        [text "Loading..."]
-
-      JailsSuccess jails ->
-        [ viewJails jails ""
-        , text "Bottom text"
+      JailsPage jpModel ->
+        [ viewJails jpModel.jails jpModel.activeJail
+        , viewJailInfo jpModel.jailInfo
         ]
       )
     ]
   }
 
-viewJails : Jails -> String -> Element msg
+viewJails : Jails -> Maybe String -> Element Msg
 viewJails jails activeJail =
   column
     [ Background.gradient {angle = 0, steps = [rgb255 0 194 65, rgb255 20 163 247]}
     , height fill
     , width (px 300)
     , spacing 5
-    ] (el
+    , scrollbarY
+    ] (link [] { url = "#", label = el
         [ Font.color (rgb 1 1 1)
         , Font.size 26
         , Font.bold
         , width fill
         , paddingXY 25 20
+        , onClick DeselectJails
         ]
-        (text "FAIL2PANEL") ::
-    (List.append (List.map (\jail -> viewJail jail activeJail) jails) (List.map (\jail -> viewJail jail activeJail) jails)))
+        (text "FAIL2PANEL")} ::
+    (List.map (\jail -> viewJail jail activeJail) jails))
 
-viewJail : String -> String -> Element msg
+viewJail : String -> Maybe String -> Element Msg
 viewJail jail activeJail =
   let activeJailAttrs =
         [ Background.gradient {angle = 0.5 * pi, steps = [rgb255 60 231 117, rgb255 64 183 254]}]
@@ -122,26 +145,34 @@ viewJail jail activeJail =
         , width fill
         , paddingXY 25 15
         , mouseOver [ Background.color (rgba 1 1 1 0.1)]
+        , onClick (SelectedJail jail)
         ]
-      attrs = (if (jail == activeJail) then
+      attrs = case activeJail of
+        Nothing -> normalAttrs
+        Just active ->
+          if (jail == active) then
             normalAttrs ++ activeJailAttrs
           else
             normalAttrs
-          )
   in
-  el
-    attrs
-    (text jail)
+  link attrs { url = "#", label = el [] (text jail) }
+
+viewJailInfo : Maybe Jail -> Element msg
+viewJailInfo maybeJail =
+  case maybeJail of
+    Nothing -> el [] (text "Bottom text lmao")
+    Just jailInfo -> el [] (text "You've got jail")
 
 
 -- HTTP
+
+
 getJails : Cmd Msg
 getJails =
   Http.get
     { url = "http://localhost:5000/api/jails"
     , expect = Http.expectJson GotJails jailsDecoder
     }
-
 
 jailsDecoder : Decoder Jails
 jailsDecoder =
@@ -152,10 +183,15 @@ getJail : String -> Cmd Msg
 getJail jail =
   Http.get
     { url = "http://localhost:5000/api/jails/" ++ jail
-    , expect = Http.expectJson GotJail jailDecoder
+    , expect = Http.expectJson (GotJail jail) jailDecoder
     }
 
-
 jailDecoder : Decoder Jail
-jailDecoder =
-  field "jails" (list string)
+jailDecoder = map7 Jail
+  (field "currently_banned" int)
+  (field "total_banned" int)
+  (field "banned_ips" (list string))
+  (field "ignored_ips" (list string))
+  (field "findtime" int)
+  (field "bantime" int)
+  (field "maxretry" int)
