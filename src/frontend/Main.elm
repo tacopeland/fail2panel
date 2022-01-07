@@ -14,6 +14,20 @@ import Json.Decode as Decode exposing (Decoder, field, int, string, list)
 import Json.Decode.Pipeline exposing (required, hardcoded)
 
 
+
+-- MAIN
+
+
+main =
+  Browser.document
+    { init = init
+    , subscriptions = subscriptions
+    , update = update
+    , view = view
+    }
+
+
+
 -- EVENTS
 
 onEnter : msg -> Element.Attribute msg
@@ -29,17 +43,6 @@ onEnter msg =
         )
     )
   )
-
--- MAIN
-
-
-main =
-  Browser.document
-    { init = init
-    , subscriptions = subscriptions
-    , update = update
-    , view = view
-    }
 
 
 
@@ -81,7 +84,12 @@ type alias IP =
   , rir : String
   }
 
-type JailInfoInput = InputBanIP | InputIgnoreIP
+type JailInfoInput =
+    InputBanIP 
+  | InputIgnoreIP
+  | InputFindTime
+  | InputBanTime
+  | InputMaxRetry
 
 initialModel = JailsPageModel [] Nothing Nothing
 
@@ -167,6 +175,24 @@ update msg model =
                   (JailsPage { jpModel | jailInfo = Just { jailInfo | banIPInput = txt }}, Cmd.none)
                 InputIgnoreIP ->
                   (JailsPage { jpModel | jailInfo = Just { jailInfo | ignoreIPInput = txt }}, Cmd.none)
+                InputFindTime ->
+                  case String.toInt txt of
+                    Nothing ->
+                      (model, Cmd.none)
+                    Just num ->
+                      (JailsPage { jpModel | jailInfo = Just { jailInfo | findTime = num }}, Cmd.none)
+                InputBanTime ->
+                  case String.toInt txt of
+                    Nothing ->
+                      (model, Cmd.none)
+                    Just num ->
+                      (JailsPage { jpModel | jailInfo = Just { jailInfo | banTime = num }}, Cmd.none)
+                InputMaxRetry ->
+                  case String.toInt txt of
+                    Nothing ->
+                      (model, Cmd.none)
+                    Just num ->
+                      (JailsPage { jpModel | jailInfo = Just { jailInfo | maxRetry = num }}, Cmd.none)
     EnterWasPressed input ->
       case model of
         Failure -> init ()
@@ -182,6 +208,12 @@ update msg model =
                       (model, postBanIP activeJail jailInfo.banIPInput)
                     InputIgnoreIP ->
                       (model, postIgnoreIP activeJail jailInfo.ignoreIPInput)
+                    InputFindTime ->
+                      (model, postFindTime activeJail (String.fromInt jailInfo.findTime))
+                    InputBanTime ->
+                      (model, postBanTime activeJail (String.fromInt jailInfo.banTime))
+                    InputMaxRetry ->
+                      (model, postMaxRetry activeJail (String.fromInt jailInfo.maxRetry))
       
 
 -- SUBSCRIPTIONS
@@ -211,7 +243,9 @@ view model =
 
       JailsPage jpModel ->
         [ viewJails jpModel.jails jpModel.activeJail
-        , viewJailInfo jpModel.jailInfo
+        , column
+          [ alignTop, alignLeft, height fill, width fill, scrollbarY ]
+          [viewJailInfo jpModel.jailInfo]
         ]
       )
     ]
@@ -278,12 +312,26 @@ viewJailInfo maybeJail =
       column [ alignTop, spacing 5 ]
         [ section 
           [ heading "Summary"
+          , text ("Current failed IPs: " ++ (String.fromInt jailInfo.currentlyFailed))
+          , text ("Total failed IPs: " ++ (String.fromInt jailInfo.totalFailed))
           , text ("Current banned IPs: " ++ (String.fromInt jailInfo.currentlyBanned))
           , text ("Total banned IPs: " ++ (String.fromInt jailInfo.totalBanned))
+          , text ("Currently watching logs: " ++ (String.join ", " jailInfo.fileList))
+          ]
+        , section
+          [ heading "Running config"
+          , txtInput InputFindTime (String.fromInt jailInfo.findTime) "Find time: "
+          , txtInput InputBanTime (String.fromInt jailInfo.banTime) "Ban time: "
+          , txtInput InputMaxRetry (String.fromInt jailInfo.maxRetry) "Max retries: "
           ]
         , section
           [ heading "Banned IPs"
-          , table [ spacing 20 ]
+          , table
+            [ spacing 20
+            , paddingEach { bottom = 15, left = 0, right = 0, top = 0 }
+            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0}
+            , Border.color (rgb 0.8 0.8 0.8)
+            ]
             { data = getJailIPs jailInfo
             , columns =
               [ { header = text "IP Address"
@@ -306,7 +354,12 @@ viewJailInfo maybeJail =
           ]
         , section
           [ heading "Ignored IPs"
-          , table [ spacing 20 ]
+          , table
+            [ spacing 20
+            , paddingEach { bottom = 15, left = 0, right = 0, top = 0 }
+            , Border.widthEach { bottom = 1, left = 0, right = 0, top = 0}
+            , Border.color (rgb 0.8 0.8 0.8)
+            ]
             { data = jailInfo.ignoredIPs
             , columns =
               [ { header = text "IP address"
@@ -389,6 +442,27 @@ postIgnoreIP : String -> String -> Cmd Msg
 postIgnoreIP jail ip =
   Http.post
     { url = "http://localhost:5000/api/jails/" ++ jail ++ "/addignore/" ++ ip
+    , body = Http.emptyBody
+    , expect = Http.expectWhatever UpdatedJail }
+
+postFindTime : String -> String -> Cmd Msg
+postFindTime jail time =
+  Http.post
+    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/findtime/" ++ time
+    , body = Http.emptyBody
+    , expect = Http.expectWhatever UpdatedJail }
+
+postBanTime : String -> String -> Cmd Msg
+postBanTime jail time =
+  Http.post
+    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/bantime/" ++ time
+    , body = Http.emptyBody
+    , expect = Http.expectWhatever UpdatedJail }
+
+postMaxRetry : String -> String -> Cmd Msg
+postMaxRetry jail amt =
+  Http.post
+    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/maxretry/" ++ amt
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
