@@ -6,6 +6,8 @@ This readme is for the finished version, not the current version. The current ve
 
 This is a web panel for fail2ban, with a backend REST API built on Flask and a frontend built with Elm.
 
+![tour](Tour.gif)
+
 ## Requirements
 
 To compile this you need a few things:
@@ -14,4 +16,3 @@ To compile this you need a few things:
 
 ## Installation
 
-TODO
