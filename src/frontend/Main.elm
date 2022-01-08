@@ -56,7 +56,12 @@ type Model
 type alias JailsPageModel =
   { jails : Jails
   , activeJail : Maybe String
-  , jailInfo : Maybe Jail }
+  , jailInfo : Maybe Jail
+  , f2bVersion : Maybe String
+  , logTarget : Maybe String
+  , dbFile : Maybe String
+  , dbPurgeAge : Maybe Int
+  }
 
 type alias Jails = List String
 type alias Jail =
@@ -91,7 +96,7 @@ type JailInfoInput =
   | InputBanTime
   | InputMaxRetry
 
-initialModel = JailsPageModel [] Nothing Nothing
+initialModel = JailsPageModel [] Nothing Nothing Nothing Nothing Nothing Nothing
 
 
 init : () -> (Model, Cmd Msg)
@@ -104,6 +109,10 @@ init _ = (JailsPage initialModel, getJails)
 
 type Msg
   = GotJails (Result Http.Error Jails)
+  | GotVersion (Result Http.Error String)
+  | GotLogTarget (Result Http.Error String)
+  | GotDbFile (Result Http.Error String)
+  | GotDbPurgeAge (Result Http.Error Int)
   | DeselectJails
   | SelectedJail String
   | UnbanIP String
@@ -121,8 +130,36 @@ update msg model =
       case result of
         Ok jailList ->
           case model of
-            Failure -> (JailsPage { initialModel | jails = jailList }, Cmd.none)
-            JailsPage jpModel -> (JailsPage { jpModel | jails = jailList }, Cmd.none)
+            Failure -> (JailsPage { initialModel | jails = jailList }, getVersion)
+            JailsPage jpModel -> (JailsPage { jpModel | jails = jailList }, getVersion)
+        Err _ -> (Failure, Cmd.none)
+    GotVersion result ->
+      case result of
+        Ok version ->
+          case model of
+            Failure -> (model, Cmd.none)
+            JailsPage jpModel -> (JailsPage { jpModel | f2bVersion = Just version }, getLogTarget)
+        Err _ -> (Failure, Cmd.none)
+    GotLogTarget result ->
+      case result of
+        Ok logTarget ->
+          case model of
+            Failure -> (model, Cmd.none)
+            JailsPage jpModel -> (JailsPage { jpModel | logTarget = Just logTarget }, getDbFile)
+        Err _ -> (Failure, Cmd.none)
+    GotDbFile result ->
+      case result of
+        Ok dbFile ->
+          case model of
+            Failure -> (Failure, Cmd.none)
+            JailsPage jpModel -> (JailsPage { jpModel | dbFile = Just dbFile }, getDbPurgeAge)
+        Err _ -> (Failure, Cmd.none)
+    GotDbPurgeAge result ->
+      case result of
+        Ok dbPurgeAge ->
+          case model of
+            Failure -> (Failure, Cmd.none)
+            JailsPage jpModel -> (JailsPage { jpModel | dbPurgeAge = Just dbPurgeAge }, Cmd.none)
         Err _ -> (Failure, Cmd.none)
     DeselectJails ->
       case model of
@@ -245,7 +282,7 @@ view model =
         [ viewJails jpModel.jails jpModel.activeJail
         , column
           [ alignTop, alignLeft, height fill, width fill, scrollbarY ]
-          [viewJailInfo jpModel.jailInfo]
+          [viewJailInfo jpModel]
         ]
       )
     ]
@@ -292,23 +329,41 @@ viewJail jail activeJail =
   in
   link attrs { url = "#", label = el [] (text jail) }
 
-viewJailInfo : Maybe Jail -> Element Msg
-viewJailInfo maybeJail =
-  case maybeJail of
-    Nothing -> el [ padding 15] (text "Bottom text lmao")
+viewJailInfo : JailsPageModel -> Element Msg
+viewJailInfo model =
+  let heading txt = el [ Font.size 26, Font.bold, paddingXY 0 15 ] (text txt)
+      section els = column [ padding 15, spacing 10 ] els
+      txtInput input modelField label =
+        Input.text
+          [ onEnter (EnterWasPressed input), spacing 10 ]
+          { onChange = (UpdateText input)
+          , text = modelField
+          , placeholder = Nothing
+          , label = Input.labelLeft [] (text label)
+          }
+      xImg = image [ height (px 16), width (px 16) ] { src = "x.png", description = "" }
+      maybeTxt txt = case txt of
+        Nothing -> "..."
+        Just strTxt -> strTxt
+      maybeIntToTxt int = case int of
+        Nothing -> "..."
+        Just innerInt -> String.fromInt innerInt
+  in
+  case model.jailInfo of
+    Nothing -> 
+      column [ alignTop, spacing 5 ]
+        [ section
+          [ heading "fail2ban web panel"
+          , text ("Currently running on fail2ban version " ++ (maybeTxt model.f2bVersion))
+          , text ("Logging to " ++ (maybeTxt model.logTarget))
+          , text ("Storing persistent data in " ++
+                  (maybeTxt model.dbFile) ++
+                  " for a maximum of " ++
+                  (maybeIntToTxt model.dbPurgeAge) ++
+                  " seconds.")
+          ]
+        ]
     Just jailInfo ->
-      let heading txt = el [ Font.size 26, Font.bold, paddingXY 0 15 ] (text txt)
-          section els = column [ padding 15, spacing 10 ] els
-          txtInput input modelField label =
-            Input.text
-              [ onEnter (EnterWasPressed input), spacing 10 ]
-              { onChange = (UpdateText input)
-              , text = modelField
-              , placeholder = Nothing
-              , label = Input.labelLeft [] (text label)
-              }
-          xImg = image [ height (px 16), width (px 16) ] { src = "x.png", description = "" }
-      in
       column [ alignTop, spacing 5 ]
         [ section 
           [ heading "Summary"
@@ -369,7 +424,7 @@ viewJailInfo maybeJail =
                 , width = fill
                 , view = \ip -> Input.button [] { onPress = Just (UnignoreIP ip), label = xImg }
               }]}
-          , txtInput InputIgnoreIP jailInfo.ignoreIPInput "Ban IP: "
+          , txtInput InputIgnoreIP jailInfo.ignoreIPInput "Ignore IP: "
           ]
         ]
 
@@ -382,13 +437,36 @@ getJails : Cmd Msg
 getJails =
   Http.get
     { url = "http://localhost:5000/api/jails"
-    , expect = Http.expectJson GotJails jailsDecoder
+    , expect = Http.expectJson GotJails (field "jails" (list string))
     }
 
-jailsDecoder : Decoder Jails
-jailsDecoder =
-  field "jails" (list string)
+getVersion : Cmd Msg
+getVersion =
+  Http.get
+    { url = "http://localhost:5000/api/version"
+    , expect = Http.expectJson GotVersion (field "version" string)
+    }
 
+getLogTarget : Cmd Msg
+getLogTarget =
+  Http.get
+    { url = "http://localhost:5000/api/logtarget"
+    , expect = Http.expectJson GotLogTarget (field "logtarget" string)
+    }
+
+getDbFile : Cmd Msg
+getDbFile =
+  Http.get
+    { url = "http://localhost:5000/api/dbfile"
+    , expect = Http.expectJson GotDbFile (field "dbfile" string)
+    }
+
+getDbPurgeAge : Cmd Msg
+getDbPurgeAge =
+  Http.get
+    { url = "http://localhost:5000/api/dbpurgeage"
+    , expect = Http.expectJson GotDbPurgeAge (field "dbpurgeage" int)
+    }
 
 getJail : String -> Cmd Msg
 getJail jail =

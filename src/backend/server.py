@@ -7,6 +7,43 @@ from fail2ban_helper import send_command
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/api/version')
+def get_version():
+    res = send_command(['version'])
+
+    if res['error']:
+        return json.dumps(res)
+
+    return {'version': res['data']}
+
+@app.route('/api/logtarget')
+def get_logtarget():
+    res = send_command(['get', 'logtarget'])
+
+    if res['error']:
+        return json.dumps(res)
+
+    return {'logtarget': res['data']}
+
+@app.route('/api/dbfile')
+def get_dbfile():
+    res = send_command(['get', 'dbfile'])
+
+    if res['error']:
+        return json.dumps(res)
+
+    return {'dbfile': res['data']}
+
+@app.route('/api/dbpurgeage')
+def get_dbpurgeage():
+    res = send_command(['get', 'dbpurgeage'])
+
+    if res['error']:
+        return json.dumps(res)
+
+    return {'dbpurgeage': res['data']}
+
 @app.route('/api/jails', methods=['GET'])
 def get_jails():
     res = send_command(['status'])

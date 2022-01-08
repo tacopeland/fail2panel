@@ -4,6 +4,32 @@
 Each API call may either return `{"error": True, "reason": ...}`
 or its normal result. Check for this error every time.
 
+## GET `/api/version`
+Returns:
+```json
+{"version": "0.11.2"}
+```
+Where `0.11.2` is the current fail2ban server version.
+
+
+## GET `/api/logtarget`
+Returns your log target:
+```json
+{"logtarget": "/var/log/fail2ban.log"}
+```
+
+## GET `/api/dbfile`
+Returns your db file:
+```json
+{"dbfile": "/var/lib/fail2ban/fail2ban.sqlite3"}
+```
+
+## GET `/api/dbpurgeage`
+Returns the max age in seconds that ban history will be kept for:
+```json
+{"dbpurgeage": 86400}
+```
+
 ## GET `/api/jails`
 Returns:
 ```json
