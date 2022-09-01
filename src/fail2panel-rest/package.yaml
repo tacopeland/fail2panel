@@ -1,0 +1,53 @@
+name:                fail2panel-rest
+version:             0.1.0.0
+github:              "tacopeland/fail2panel-rest"
+license:             BSD3
+author:              "Timothy Copeland"
+maintainer:          "timcopeland1111@gmail.com"
+copyright:           "2022 Timothy Copeland"
+
+description:         Please see the README on GitHub at <https://github.com/githubuser/fail2panel-rest#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- aeson
+- bytestring
+- containers
+- mtl
+- network
+- python-pickle
+- servant-server
+- text
+- wai
+- warp
+
+library:
+  source-dirs: src
+
+executables:
+  fail2panel-rest-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - fail2panel-rest
+
+tests:
+  fail2panel-rest-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - fail2panel-rest
+    - hspec
+    - hspec-wai
+    - hspec-wai-json
+    - aeson
