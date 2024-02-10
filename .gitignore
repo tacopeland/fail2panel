@@ -10,3 +10,6 @@ elm-stuff
 index.html
 
 **/.stack-work/
+
+stack.yaml.lock
+tags

@@ -19,6 +19,7 @@ import qualified Network.Socket.ByteString as S
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
+import Network.Wai.Middleware.Cors
 
 import Config
 import Fail2banHelper
@@ -80,7 +81,7 @@ startApp :: IO ()
 startApp = run 5000 app
 
 app :: Application
-app = serve api server
+app = cors (return $ Just $ simpleCorsResourcePolicy { corsOrigins = Nothing }) $ serve api server
 
 api :: Proxy OuterAPI
 api = Proxy

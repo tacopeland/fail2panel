@@ -20,6 +20,7 @@ dependencies:
 - text
 - wai
 - warp
+- wai-cors
 
 library:
   source-dirs: src
