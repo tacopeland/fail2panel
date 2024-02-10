@@ -1,5 +1,7 @@
 module Main exposing (..)
 
+import Config exposing (apiUrl)
+
 import Browser
 import Element exposing (..)
 import Element.Background as Background
@@ -12,6 +14,7 @@ import Html exposing (Html)
 import Html.Events
 import Json.Decode as Decode exposing (Decoder, field, int, string, list)
 import Json.Decode.Pipeline exposing (required, hardcoded)
+import List exposing (length, repeat, any)
 
 
 
@@ -405,6 +408,12 @@ viewJailInfo model =
                 , width = fill
                 , view = \ip -> Input.button [] { onPress = Just (UnbanIP ip.addr), label = xImg }
               }]}
+          , if
+              any (\l -> l == ["error"]) [jailInfo.bannedASNs, jailInfo.bannedCountries, jailInfo.bannedRIRs]
+            then
+              el [Font.italic] (text ("To get ASN, Country, and RIR, install dnspython where fail2ban can see it."))
+            else
+              none
           , txtInput InputBanIP jailInfo.banIPInput "Ban IP: "
           ]
         , section
@@ -436,42 +445,42 @@ viewJailInfo model =
 getJails : Cmd Msg
 getJails =
   Http.get
-    { url = "http://localhost:5000/api/jails"
+    { url = apiUrl ++ "/jails"
     , expect = Http.expectJson GotJails (field "jails" (list string))
     }
 
 getVersion : Cmd Msg
 getVersion =
   Http.get
-    { url = "http://localhost:5000/api/version"
+    { url = apiUrl ++ "/version"
     , expect = Http.expectJson GotVersion (field "version" string)
     }
 
 getLogTarget : Cmd Msg
 getLogTarget =
   Http.get
-    { url = "http://localhost:5000/api/logtarget"
+    { url = apiUrl ++ "/logtarget"
     , expect = Http.expectJson GotLogTarget (field "logtarget" string)
     }
 
 getDbFile : Cmd Msg
 getDbFile =
   Http.get
-    { url = "http://localhost:5000/api/dbfile"
+    { url = apiUrl ++ "/dbfile"
     , expect = Http.expectJson GotDbFile (field "dbfile" string)
     }
 
 getDbPurgeAge : Cmd Msg
 getDbPurgeAge =
   Http.get
-    { url = "http://localhost:5000/api/dbpurgeage"
+    { url = apiUrl ++ "/dbpurgeage"
     , expect = Http.expectJson GotDbPurgeAge (field "dbpurgeage" int)
     }
 
 getJail : String -> Cmd Msg
 getJail jail =
   Http.get
-    { url = "http://localhost:5000/api/jails/" ++ jail
+    { url = apiUrl ++ "/jails/" ++ jail
     , expect = Http.expectJson (GotJail jail) jailDecoder
     }
 
@@ -498,52 +507,57 @@ jailDecoder =
 postUnbanIP : String -> String -> Cmd Msg
 postUnbanIP jail ip =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/unban/" ++ ip
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/unban/" ++ ip
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postBanIP : String -> String -> Cmd Msg
 postBanIP jail ip =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/ban/" ++ ip
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/ban/" ++ ip
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postUnignoreIP : String -> String -> Cmd Msg
 postUnignoreIP jail ip =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/delignore/" ++ ip
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/delignore/" ++ ip
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postIgnoreIP : String -> String -> Cmd Msg
 postIgnoreIP jail ip =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/addignore/" ++ ip
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/addignore/" ++ ip
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postFindTime : String -> String -> Cmd Msg
 postFindTime jail time =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/findtime/" ++ time
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/findtime/" ++ time
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postBanTime : String -> String -> Cmd Msg
 postBanTime jail time =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/bantime/" ++ time
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/bantime/" ++ time
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 postMaxRetry : String -> String -> Cmd Msg
 postMaxRetry jail amt =
   Http.post
-    { url = "http://localhost:5000/api/jails/" ++ jail ++ "/maxretry/" ++ amt
+    { url = apiUrl ++ "/jails/" ++ jail ++ "/maxretry/" ++ amt
     , body = Http.emptyBody
     , expect = Http.expectWhatever UpdatedJail }
 
 getJailIPs : Jail -> List IP
 getJailIPs jail =
-  List.map4 (\a b c d -> IP a b c d) jail.bannedIPs jail.bannedASNs jail.bannedCountries jail.bannedRIRs
+  let fillSpace l = l ++ repeat (length jail.bannedIPs - length l) ""
+      bannedASNs = if jail.bannedASNs == ["error"] then fillSpace [] else fillSpace jail.bannedASNs
+      bannedCountries = if jail.bannedCountries == ["error"] then fillSpace [] else fillSpace jail.bannedCountries
+      bannedRIRs = if jail.bannedRIRs == ["error"] then fillSpace [] else fillSpace jail.bannedRIRs
+  in
+  List.map4 (\a b c d -> IP a b c d) jail.bannedIPs bannedASNs bannedCountries bannedRIRs

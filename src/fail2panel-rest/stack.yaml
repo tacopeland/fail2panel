@@ -40,9 +40,9 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-- archive: /home/t.copeland/prog/personal/python-pickle/dist-newstyle/sdist/python-pickle-0.2.3.tar.gz
-#  - git: https://github.com/tacopeland/python-pickle.git
-#commit: cd5abf0d01bfe790df0e5ebcb44dbad71ea30f54
+# - archive: /home/t.copeland/prog/personal/python-pickle/dist-newstyle/sdist/python-pickle-0.3.0.tar.gz
+- git: /home/t.copeland/prog/personal/python-pickle
+  commit: e7003e94a8053d638f1b68e789a89bc3bd06aa3b
 
 
 # Override default flag values for local packages and extra-deps

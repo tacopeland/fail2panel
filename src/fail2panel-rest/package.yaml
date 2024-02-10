@@ -15,7 +15,7 @@ dependencies:
 - containers
 - mtl
 - network
-- python-pickle
+- python-pickle == 0.3.0
 - servant-server
 - text
 - wai

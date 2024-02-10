@@ -8,8 +8,11 @@ venv
 
 elm-stuff
 index.html
+package-lock.json
 
 **/.stack-work/
 
 stack.yaml.lock
 tags
+
+**/dist-newstyle/

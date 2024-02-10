@@ -36,7 +36,7 @@ library
     , containers
     , mtl
     , network
-    , python-pickle
+    , python-pickle ==0.3.0
     , servant-server
     , text
     , wai
@@ -59,7 +59,7 @@ executable fail2panel-rest-exe
     , fail2panel-rest
     , mtl
     , network
-    , python-pickle
+    , python-pickle ==0.3.0
     , servant-server
     , text
     , wai
@@ -86,7 +86,7 @@ test-suite fail2panel-rest-test
     , hspec-wai-json
     , mtl
     , network
-    , python-pickle
+    , python-pickle ==0.3.0
     , servant-server
     , text
     , wai
